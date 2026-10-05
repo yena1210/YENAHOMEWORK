@@ -119,17 +119,46 @@
       #mute.off .w {
         display: none;
       }
+      @media (max-width: 520px) {
+        #ui {
+          gap: 10px;
+          bottom: calc(16px + env(safe-area-inset-bottom));
+        }
+        #hint {
+          font-size: clamp(10px, 2.9vw, 12px);
+          letter-spacing: 0.04em;
+        }
+        #dots i {
+          width: 5px;
+          height: 5px;
+        }
+        #relight {
+          font-size: 10px;
+          letter-spacing: 0.16em;
+          padding: 7px 14px;
+        }
+        #mute {
+          width: 30px;
+          height: 30px;
+          top: calc(10px + env(safe-area-inset-top));
+          right: 10px;
+        }
+        #mute svg {
+          width: 13px;
+          height: 13px;
+        }
+      }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/p5@2.3.3/lib/p5.min.js"></script>
-    <script src="config.js?v=2"></script>
-    <script src="src/shaders.js?v=2"></script>
-    <script src="src/render.js?v=2"></script>
-    <script src="src/layers.js?v=2"></script>
-    <script src="src/particles.js?v=2"></script>
-    <script src="src/audio.js?v=2"></script>
-    <script src="sketch.js?v=2"></script>
+    <script src="config.js?v=3"></script>
+    <script src="src/shaders.js?v=3"></script>
+    <script src="src/render.js?v=3"></script>
+    <script src="src/layers.js?v=3"></script>
+    <script src="src/particles.js?v=3"></script>
+    <script src="src/audio.js?v=3"></script>
+    <script src="sketch.js?v=3"></script>
     <script>
-      if (/[?&]sim=/.test(location.search)) document.write('<script src="src/sim.js?v=2"><\/script>');
+      if (/[?&]sim=/.test(location.search)) document.write('<script src="src/sim.js?v=3"><\/script>');
     </script>
   </head>
 
