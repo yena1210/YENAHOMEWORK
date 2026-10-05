@@ -1,36 +1,151 @@
 <!doctype html>
-<html>
+<html lang="ko">
   <head>
-    <meta charset="UTF-8" />
-    <!-- 모바일 필수: 폰에서 PC용 화면처럼 축소되는 것 방지 -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
-    <title>Homework2</title>
-    <script src="https://cdn.jsdelivr.net/npm/p5@2/lib/p5.min.js"></script>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#000000" />
+    <title>EMBER</title>
     <style>
-      html, body {
-        height: 100%;
-        margin: 0;
-        overflow: hidden;
-      }
-      /* 터치 필수: 브라우저가 스크롤/확대 대신 코드에 터치를 넘기도록 함.
-         iOS Safari는 canvas가 아니라 body에 걸어야 인정함 */
+      html,
       body {
-        touch-action: none;
+        padding: 0;
+        margin: 0;
+        height: 100%;
+        background-color: #000;
+        overflow: hidden;
         overscroll-behavior: none;
-        -webkit-user-select: none;
         user-select: none;
+        -webkit-user-select: none;
         -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: none;
       }
       canvas {
+        display: block;
         touch-action: none;
       }
+      #ui {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: calc(22px + env(safe-area-inset-bottom));
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        pointer-events: none;
+        font-family: -apple-system, 'Apple SD Gothic Neo', 'Pretendard', sans-serif;
+      }
+      #hint {
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        color: rgba(255, 228, 200, 0.75);
+        text-align: center;
+        padding: 0 16px;
+        min-height: 1.4em;
+        opacity: 0;
+        transform: translateY(4px);
+        transition: opacity 1.2s ease, transform 1.2s ease;
+      }
+      #hint.show {
+        opacity: 1;
+        transform: none;
+      }
+      #dots {
+        display: flex;
+        gap: 10px;
+      }
+      #dots i {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: rgba(255, 220, 180, 0.18);
+        transition: background 0.8s ease, box-shadow 0.8s ease;
+      }
+      #dots i.done {
+        background: rgba(255, 220, 180, 0.4);
+      }
+      #dots i.on {
+        background: rgba(255, 214, 160, 0.9);
+        box-shadow: 0 0 8px rgba(255, 170, 90, 0.7);
+      }
+      button {
+        pointer-events: auto;
+        touch-action: manipulation;
+        background: none;
+        border: 1px solid rgba(255, 220, 180, 0.22);
+        color: rgba(255, 228, 200, 0.7);
+        font: inherit;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #relight {
+        font-size: 12px;
+        letter-spacing: 0.2em;
+        padding: 9px 18px;
+        border-radius: 999px;
+        opacity: 0.35;
+        transition: opacity 1.2s ease, border-color 1.2s ease;
+      }
+      #relight.show {
+        opacity: 1;
+        border-color: rgba(255, 220, 180, 0.45);
+      }
+      #mute {
+        position: fixed;
+        top: calc(14px + env(safe-area-inset-top));
+        right: 14px;
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        border-color: rgba(255, 220, 180, 0.14);
+        display: grid;
+        place-items: center;
+        opacity: 0.6;
+      }
+      #mute svg {
+        width: 16px;
+        height: 16px;
+      }
+      #mute .x {
+        display: none;
+      }
+      #mute.off .x {
+        display: inline;
+      }
+      #mute.off .w {
+        display: none;
+      }
     </style>
-  </head>
-  <body>
-    <script>
-      // 터치 필수: Safari는 CSS만으로는 드래그 스크롤을 완전히 못 막아서 스크립트로 한 번 더 차단
-      document.addEventListener("touchmove", function (e) { e.preventDefault(); }, { passive: false });
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/p5@2.3.3/lib/p5.min.js"></script>
+    <script src="config.js"></script>
+    <script src="src/shaders.js"></script>
+    <script src="src/render.js"></script>
+    <script src="src/layers.js"></script>
+    <script src="src/particles.js"></script>
+    <script src="src/audio.js"></script>
     <script src="sketch.js"></script>
+    <script>
+      if (/[?&]sim=/.test(location.search)) document.write('<script src="src/sim.js"><\/script>');
+    </script>
+  </head>
+
+  <body>
+    <main></main>
+    <div id="ui">
+      <div id="hint" aria-live="polite"></div>
+      <div id="dots" aria-label="레벨"><i></i><i></i><i></i></div>
+      <button id="relight" type="button">다시 켜기</button>
+    </div>
+    <button id="mute" type="button" aria-label="소리 끄기" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 9h4l5-4v14l-5-4H4z" />
+        <path class="w" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" />
+        <path class="x" d="M17 9l5 6M22 9l-5 6" />
+      </svg>
+    </button>
   </body>
 </html>
