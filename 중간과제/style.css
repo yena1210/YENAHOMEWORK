@@ -523,3 +523,28 @@ body {
 .note .duetip { margin-top: 6px; font-size: 12px; color: var(--ink); opacity: 0.8; word-break: keep-all; }
 .note .knittip { margin-top: 6px; padding-top: 5px; border-top: 1.5px dashed var(--yarn-note, rgba(58,55,102,0.3)); font-size: 12px; color: var(--ink); word-break: keep-all; }
 .note .text.done { text-decoration: line-through; text-decoration-color: var(--yarn-note); opacity: 0.7; }
+
+/* 소리 켜고 끄기: 오른쪽 위 작은 종이 동그라미 + 잉크 음표 */
+.soundbtn {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(250, 246, 236, 0.8);
+  box-shadow: 0 0 10px 4px rgba(250, 246, 236, 0.8);
+  color: var(--ink);
+  cursor: pointer;
+  z-index: 30;
+}
+.soundbtn svg { width: 20px; height: 20px; display: block; margin: auto; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; opacity: 0.75; }
+.soundbtn .off { display: none; }
+.soundbtn.muted svg { opacity: 0.4; }
+.soundbtn.muted .off { display: inline; opacity: 1; }
+.soundbtn:focus-visible { outline: 2px solid var(--yarn); outline-offset: 2px; }
+/* 뜨개방에서는 틀 장식과 겹치지 않게 숨긴다 */
+.soundbtn { transition: opacity 0.4s; }
+body:has(.room.on) .soundbtn { opacity: 0; pointer-events: none; }

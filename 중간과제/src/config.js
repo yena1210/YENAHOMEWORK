@@ -204,6 +204,18 @@ export const config = {
   // 함박눈: 하늘을 톡 누르면 잠깐 펑펑 내린다
   flurry: { count: 1400, size: 11, fall: 1.3, rise: 1.0, hold: 6, fade: 2.5 },
 
+  // 소리: 오르골 배경 왈츠 (파일 없이 Web Audio 로)
+  sound: {
+    volume: 0.8, // 전체
+    music: 0.5, // 배경 음악
+    bpm: 66, // 왈츠 빠르기 (3/4박)
+    decay: 1.4, // 오르골 음이 울리는 길이 (초 정도)
+    wet: 0.45, // 잔향 양
+    verbSec: 3.2, // 잔향 길이
+    bright: 5200, // 높은 소리를 이 위로 깎아 부드럽게 (Hz)
+    fadeIn: 5, // 처음 음악이 커지는 시간 (초)
+  },
+
   // 저장 (localStorage). 실패해도 화면은 그대로 돈다
   save: { key: 'memo.v1', every: 1.5 }, // 바뀐 게 있으면 이만큼(초)마다 저장
 

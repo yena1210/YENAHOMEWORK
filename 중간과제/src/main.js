@@ -17,6 +17,7 @@ import { makePager } from './pager.js';
 import { makeMemoList } from './memoList.js';
 import { makeKnitRoom } from './knitRoom.js';
 import { fontReady } from './knitText.js';
+import { makeSound } from './sound.js';
 
 // 주소로 고르기: ?season=b, ?tree=2, ?seed=5
 const q = new URLSearchParams(location.search);
@@ -63,6 +64,7 @@ function setYarn(hue, color = yarnTones(hue).base) {
 }
 let ballKey = null, warmT = 0, hintEl = null;
 const ballScreen = { x: 0, y: 0, r: 0 };
+if (!lab) makeSound(); // 오르골 배경 음악
 if (!lab) {
   scene.add(camera);
   // 큰 털실 위에 겹친 투명한 손잡이: 톡 / Enter / Space → 뜨개방(메모 쓰기), 길게 누르기 → 메모 목록
