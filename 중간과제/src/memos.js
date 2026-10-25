@@ -127,7 +127,7 @@ export function makeMemos(renderer, scene, world) {
       m.spots[key] = pool.length ? pool[Math.floor(m.spot * pool.length)] : s.deco[key];
     }
     const q = m.spots[key];
-    return { decoAt: q.at, decoA: q.a };
+    return { decoAt: q.at, decoA: q.a, decoS: hang ? q.s ?? 1 : 1 };
   };
   function build(m) {
     if (m.piece) {
@@ -179,7 +179,7 @@ export function makeMemos(renderer, scene, world) {
     }
     if (s.urgent) {
       if (m.deco === 'tassel') d.rotation.z = Math.sin(time * 7) * U.wobble;
-      else d.scale.setScalar(1 + Math.sin(time * 5) * U.wobble * 0.5);
+      else d.scale.setScalar((d.userData.k ?? 1) * (1 + Math.sin(time * 5) * U.wobble * 0.5));
     }
   }
   /** 읽음: 깨어난 퐁퐁은 다시 잠들지 않고 알림이 끝난다 */

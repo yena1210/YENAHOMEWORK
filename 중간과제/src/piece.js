@@ -68,6 +68,7 @@ export function makePiece(renderer, branch, o) {
     const d = o.deco === 'flower' ? flower(renderer, tones, st) : o.deco === 'pompom' ? pompom(renderer, tones, ph, st) : tassel(renderer, tones, ph, st);
     d.position.copy(pos);
     d.userData.base = pos.clone(); // 통통 튀기, 흔들기의 기준
+    d.userData.k = o.decoS ?? 1; // 매달 길이 모자란 자리는 조금 작게
     if (o.deco === 'flower') d.lookAt(pos.clone().add(dir));
     grp.add(d);
     grp.userData.deco = d;
@@ -95,7 +96,7 @@ export function grow(piece, p, pop = p >= 1 ? 1 : 0) {
   if (deco) {
     // 살짝 넘쳤다 돌아오는 튀어나옴
     const s = pop <= 0 ? 0 : 1 + 0.35 * Math.sin(pop * Math.PI) * (1 - pop);
-    deco.scale.setScalar(Math.max(1e-3, s * Math.min(1, pop * 2.2)));
+    deco.scale.setScalar(Math.max(1e-3, (deco.userData.k ?? 1) * s * Math.min(1, pop * 2.2)));
     deco.visible = pop > 0;
   }
 }

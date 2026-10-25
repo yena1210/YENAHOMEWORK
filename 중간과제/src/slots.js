@@ -70,6 +70,57 @@ export function makeSlots(branches, treeMesh, eye, occ = [], avoid = []) {
     return !anyHit(block, eye, d.clone().negate().normalize(), d.length());
   };
   let drop = 0;
+
+  // 매달린 장식(퐁퐁, 태슬)이 내려갈 길이 비었는지: 끈과 방울이 가지나 아래 조각 속으로, 땅 밑으로 묻히지 않게.
+  // 가지 표면을 촘촘히 짚어 두고, 매달린 길의 점마다 표면까지 거리를 잰다 (나무 안쪽 좌표, y 가 위)
+  const KD = config.knit.deco, thick = config.knit.thick;
+  const hangLen = KD.cord + Math.max(KD.pompom * 2, KD.tassel * 1.1); // 끈 + 방울(또는 술) 끝까지
+  const marks = [];
+  for (const b of branches) {
+    const n = Math.max(2, Math.ceil(b.len / 0.05));
+    for (let i = 0; i <= n; i++) {
+      const f2 = b.at(i / n, {});
+      let rm = 0;
+      for (let k = 0; k < 8; k++) rm = Math.max(rm, b.surface(i / n, (k / 8) * Math.PI * 2, f2.r));
+      marks.push({ b, t: i / n, f: f2, rm, half: b.len / n * 0.6 });
+    }
+  }
+  const q = new THREE.Vector3();
+  // 점 P 에서 가장 가까운 나무 표면(+ 조각 두께)까지의 거리
+  function gap(P, near) {
+    let best = Infinity;
+    for (const m of marks) {
+      const dx = P.x - m.f.pos.x, dy = P.y - m.f.pos.y, dz = P.z - m.f.pos.z;
+      if (dx * dx + dy * dy + dz * dz > (m.rm + near + m.half) ** 2) continue;
+      q.set(dx, dy, dz);
+      const along = q.dot(m.f.tan);
+      if (Math.abs(along) > m.half) continue;
+      q.addScaledVector(m.f.tan, -along);
+      const a = Math.atan2(q.dot(m.f.bin), q.dot(m.f.nrm));
+      best = Math.min(best, q.length() - m.b.surface(m.t, a, m.f.r) - thick * 1.5);
+    }
+    return best;
+  }
+  const A = new THREE.Vector3(), P2 = new THREE.Vector3();
+  // 붙는 자리에서 장식까지 떨어진 만큼(o0)보다 아래 길에서 표면이 더 다가오면 묻힌다
+  function hangFree(b, t, a, len) {
+    b.at(t, f);
+    n.copy(f.nrm).multiplyScalar(Math.cos(a)).addScaledVector(f.bin, Math.sin(a));
+    const lift = thick * 1.4 + KD.tassel * 0.12; // piece.js 와 같은 띄움
+    A.copy(f.pos).addScaledVector(n, b.surface(t, a, f.r) + lift);
+    if (A.y - len < 0.04) return false; // 땅에 닿는다
+    const o0 = lift - thick * 1.5;
+    for (let y = 0.06; y <= len + 1e-6; y += 0.04) {
+      P2.set(A.x, A.y - y, A.z);
+      if (gap(P2, o0) < o0 * 0.6) return false;
+    }
+    return true;
+  }
+
+  // 매달린 장식은 내려갈 길이 빈 곳만. 없으면 장식을 조금 작게(s) 해서 다시 찾는다 (밑동 가까이 등)
+  const SIZES = [1, 0.75, 0.55, 0.4];
+  const free = (c, t, a, dz, sc) => !dz || hangFree(c.branch, t, a, hangLen * sc);
+
   for (const c of cand) {
     let seen = 0;
     const N = 5;
@@ -96,34 +147,39 @@ export function makeSlots(branches, treeMesh, eye, occ = [], avoid = []) {
     // 장식 자리: 가운데에 가까우면서 카메라에서 실제로 보이는 곳 (뒤쪽 갈래는 줄기에 가리지 않는 옆면)
     // 붙는 장식(꽃)과 매달린 장식(퐁퐁, 태슬)은 따로 찾는다 → 매달린 것은 늘어진 끝까지 보이는 곳
     const stick = spot(c, 0), hang = spot(c, C.hangDrop);
-    c.deco = { stick, hang: hang.a === null ? stick : hang }; // 끝까지 보이는 곳이 없으면 매다는 곳이라도 보이게
+    c.deco = { stick, hang: hang.a === null ? { ...stick, s: 0.4 } : hang }; // 빈 길이 없으면 붙는 자리에 아주 작게
     c.spots = (dz) => spots(c, dz);
   }
   // 장식을 달 수 있는 보이는 자리 전부 (조각마다 이 중에서 랜덤으로 고른다). k = 정면에서 돈 각도
   function spots(c, dz) {
-    drop = dz;
     const out = [];
-    for (const u of [0.3, 0.42, 0.5, 0.58, 0.7]) {
-      const t = c.t0 + (c.t1 - c.t0) * u;
-      c.branch.at(t, f);
-      d.copy(eye).sub(p.copy(f.pos).applyMatrix4(toWorld));
-      const a0 = Math.atan2(d.dot(f.bin), d.dot(f.nrm));
-      for (const k of [-1.1, -0.75, -0.4, 0, 0.4, 0.75, 1.1]) {
-        if (look(c.branch, t, a0 + k)) out.push({ at: u, a: a0 + k, k });
+    for (const sc of dz ? SIZES : [1]) {
+      drop = dz * sc;
+      for (const u of [0.3, 0.42, 0.5, 0.58, 0.7]) {
+        const t = c.t0 + (c.t1 - c.t0) * u;
+        c.branch.at(t, f);
+        d.copy(eye).sub(p.copy(f.pos).applyMatrix4(toWorld));
+        const a0 = Math.atan2(d.dot(f.bin), d.dot(f.nrm));
+        for (const k of [-1.1, -0.75, -0.4, 0, 0.4, 0.75, 1.1]) {
+          if (look(c.branch, t, a0 + k) && free(c, t, a0 + k, dz, sc)) out.push({ at: u, a: a0 + k, k, s: sc });
+        }
       }
+      if (out.length) break;
     }
     drop = 0;
     return out;
   }
   function spot(c, dz) {
-    drop = dz;
-    for (const u of [0.5, 0.38, 0.62, 0.26, 0.74, 0.16, 0.84]) {
-      const t = c.t0 + (c.t1 - c.t0) * u;
-      c.branch.at(t, f);
-      d.copy(eye).sub(p.copy(f.pos).applyMatrix4(toWorld));
-      const a0 = Math.atan2(d.dot(f.bin), d.dot(f.nrm));
-      for (const k of [0, -0.45, 0.45, -0.9, 0.9, -1.3, 1.3, -1.65, 1.65]) {
-        if (look(c.branch, t, a0 + k)) { drop = 0; return { at: u, a: a0 + k }; }
+    for (const sc of dz ? SIZES : [1]) {
+      drop = dz * sc;
+      for (const u of [0.5, 0.38, 0.62, 0.26, 0.74, 0.16, 0.84, 0.92]) {
+        const t = c.t0 + (c.t1 - c.t0) * u;
+        c.branch.at(t, f);
+        d.copy(eye).sub(p.copy(f.pos).applyMatrix4(toWorld));
+        const a0 = Math.atan2(d.dot(f.bin), d.dot(f.nrm));
+        for (const k of [0, -0.45, 0.45, -0.9, 0.9, -1.3, 1.3, -1.65, 1.65]) {
+          if (look(c.branch, t, a0 + k) && free(c, t, a0 + k, dz, sc)) { drop = 0; return { at: u, a: a0 + k, s: sc }; }
+        }
       }
     }
     drop = 0;
