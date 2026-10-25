@@ -3,6 +3,7 @@
 // 갈라지는 곳은 비우고, 정면(카메라)에서 가려지는 자리는 뺀다.
 import * as THREE from 'three';
 import { config } from './config.js';
+import { anyHit } from './bvh.js';
 
 /** occ = 앞에 선 나무들 (가리면 자리가 아니다), avoid = 다른 나무의 자리 (화면에서 겹치지 않게) */
 export function makeSlots(branches, treeMesh, eye, occ = [], avoid = []) {
@@ -51,8 +52,7 @@ export function makeSlots(branches, treeMesh, eye, occ = [], avoid = []) {
   }
 
   // 정면에서 보이는지: 조각 둘레의 여러 방향(정면 ±70도)에서 표면 점을 골라 카메라로 광선을 쏜다.
-  // 한 방향이라도 가리지 않으면 그 높이는 보이는 것 → 뒤쪽 갈래도 옆면이 보이면 슬롯이 된다.
-  const ray = new THREE.Raycaster();
+  // 한 방향이라도 가리지 않으면 그 높이는 보이는 것 → 뒤쪽 갈래도 옆면이 보이면 슬롯이 된다. (광선 검사는 bvh.js 로 빠르게)
   const f = {}, p = new THREE.Vector3(), d = new THREE.Vector3(), n = new THREE.Vector3();
   treeMesh.updateMatrixWorld(true);
   const toWorld = treeMesh.matrixWorld;
@@ -62,16 +62,12 @@ export function makeSlots(branches, treeMesh, eye, occ = [], avoid = []) {
     d.copy(eye).sub(p);
     if (n.dot(d) <= d.length() * 0.2) return false; // 카메라 쪽을 안 보는 면
     const dist = d.length();
-    ray.set(eye, d.negate().normalize());
-    ray.far = dist;
-    if (ray.intersectObjects(block, false).length) return false;
+    if (anyHit(block, eye, d.negate().normalize(), dist)) return false;
     // 매달린 장식: 늘어진 끝(아래로 drop만큼)도 보여야 한다
     if (!drop) return true;
     p.y -= drop;
     d.copy(eye).sub(p);
-    ray.set(eye, d.clone().negate().normalize());
-    ray.far = d.length();
-    return !ray.intersectObjects(block, false).length;
+    return !anyHit(block, eye, d.clone().negate().normalize(), d.length());
   };
   let drop = 0;
   for (const c of cand) {
