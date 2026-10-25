@@ -1,0 +1,525 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #f2ecdf; /* 로딩 중에도 종이색 */
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+#app canvas {
+  display: block;
+  touch-action: none; /* 브라우저 스크롤/줌 대신 우리 제스처 */
+}
+
+/* 글꼴: 나눔스퀘어 네오 (lib/fonts, OFL) */
+@font-face { font-family: 'Galmuri11'; src: url('lib/fonts/Galmuri11.woff2') format('woff2'); font-display: block; }
+@font-face { font-family: 'NanumSquare Neo'; src: url('lib/fonts/NanumSquareNeo-bRg.ttf') format('truetype'); font-display: swap; }
+
+:root {
+  --yarn: #e3a3bb; /* 지금 실 색 (물레가 바꾼다) */
+  --ink: #3a3766;
+  --font: 'NanumSquare Neo', sans-serif;
+  --font-size: 15px;
+}
+
+/* 물레 위에 겹친 투명한 손잡이 (그림은 3D) */
+.wheel {
+  position: fixed;
+  border-radius: 50%;
+  touch-action: none;
+  cursor: grab;
+  outline: none;
+}
+.wheel:active { cursor: grabbing; }
+.wheel:focus-visible { box-shadow: 0 0 0 2px var(--yarn), 0 0 0 4px rgba(58, 55, 102, 0.35); }
+
+/* 큰 실뭉치 위에 겹친 투명한 손잡이 */
+.ballkey {
+  position: fixed;
+  border-radius: 50%;
+  cursor: pointer;
+  outline: none;
+  touch-action: none;
+}
+.ballkey:focus-visible { box-shadow: 0 0 0 2px var(--yarn), 0 0 0 4px rgba(58, 55, 102, 0.35); }
+
+/* 메모 한 줄: 테두리 없이 실 색 점선 밑줄 하나 */
+#memo {
+  position: fixed;
+  bottom: 22px;
+  box-sizing: border-box;
+  padding: 4px 4px 9px; /* 아래 여백 = 글자와 밑줄 사이 간격 */
+  text-align: center;
+  border: none;
+  border-bottom: 2px dashed var(--yarn);
+  /* 상자 대신 종이색 번짐 → 뒤의 식물 위에서도 글자가 읽힌다 */
+  background: rgba(250, 246, 236, 0.72);
+  box-shadow: 0 0 12px 8px rgba(250, 246, 236, 0.72);
+  border-radius: 10px;
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: var(--font-size);
+  letter-spacing: -0.01em;
+  transition: color 0.3s, transform 0.3s;
+  outline: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+#memo::placeholder { color: rgba(58, 55, 102, 0.45); }
+
+/* 쓰면서 찾기: 같은 말이 든 메모 수 */
+.found {
+  position: fixed;
+  left: 50%;
+  bottom: 64px;
+  transform: translate(-50%, 4px);
+  padding: 2px 10px;
+  border-radius: 10px;
+  background: rgba(250, 246, 236, 0.72);
+  box-shadow: 0 0 10px 6px rgba(250, 246, 236, 0.72);
+  color: rgba(58, 55, 102, 0.7);
+  font-family: var(--font);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s, transform 0.25s;
+}
+.found.on { opacity: 1; transform: translate(-50%, 0); }
+
+/* 짜기 시작: 글자가 나무 쪽으로 떠오르며 사라진다 */
+.ghost {
+  position: fixed;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: var(--font-size);
+  white-space: nowrap;
+  justify-content: center;
+  animation: ghost 0.75s ease-in forwards;
+}
+@keyframes ghost {
+  to { transform: translateY(-46px); opacity: 0; filter: blur(1.5px); }
+}
+/* 글자 없이 꾹: 입력 줄이 살짝 흔들린다 */
+#memo.shake { animation: shake 0.42s; }
+@keyframes shake {
+  20% { margin-left: -7px; }
+  40% { margin-left: 6px; }
+  60% { margin-left: -4px; }
+  80% { margin-left: 2px; }
+}
+
+/* 꾹 누르는 동안 손가락 둘레의 실 고리 */
+.holdring {
+  --ring: #e3a3bb;
+  position: fixed;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.6);
+  opacity: 0;
+  transition: opacity 0.18s, transform 0.25s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.holdring.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.holdring.pop svg { animation: ringpop 0.3s; }
+@keyframes ringpop { 40% { transform: scale(1.18); } }
+.holdring svg { display: block; overflow: visible; }
+.holdring .paper { fill: rgba(250, 246, 236, 0.82); stroke: var(--ink); stroke-width: 1.4; }
+.holdring .track { fill: none; stroke: var(--ink); stroke-opacity: 0.18; stroke-width: 7; stroke-dasharray: 2 4; }
+.holdring .yarn {
+  fill: none;
+  stroke: var(--ring);
+  stroke-width: 7;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.08s linear;
+}
+.holdring .ticks circle { fill: #fbf6ea; stroke: var(--ink); stroke-width: 1.4; }
+.holdring .swatch { fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linejoin: round; }
+.holdring .hint {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  margin-top: 4px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--ink);
+  padding: 3px 8px;
+  background: rgba(250, 246, 236, 0.85);
+  box-shadow: 0 0 8px 5px rgba(250, 246, 236, 0.85);
+  border-radius: 8px;
+}
+
+/* 읽기: 조각 옆 종이 위에 떠오르는 메모 (상자 없이 종이색 번짐) */
+.note {
+  position: fixed;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink);
+  word-break: keep-all;
+  padding: 2px 4px;
+  background: rgba(250, 246, 236, 0.86);
+  box-shadow: 0 0 14px 12px rgba(250, 246, 236, 0.86);
+  border-radius: 12px;
+  opacity: 0;
+  filter: blur(3px);
+  transition: opacity 0.35s, filter 0.35s;
+}
+.note.on { opacity: 1; filter: none; }
+/* 땅의 작은 실뭉치를 톡: 흐릿한 손글씨로 잠깐 */
+.note.faint.on { opacity: 0.74; filter: blur(0.3px); }
+.note .hint {
+  margin-top: 4px;
+  font-size: 11px;
+  color: rgba(58, 55, 102, 0.45);
+}
+.note .day { margin-top: 2px; font-size: 11px; color: rgba(58, 55, 102, 0.55); }
+.noteline {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s;
+}
+.noteline.on { opacity: 1; }
+.noteline line {
+  stroke: var(--yarn-note, var(--yarn));
+  stroke-width: 2;
+  stroke-dasharray: 3 4;
+  stroke-linecap: round;
+}
+
+/* 바구니 힌트: 바구니 위에 작게 (처음 두 번) */
+.tip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  font-family: var(--font);
+  font-size: 12px;
+  color: rgba(58, 55, 102, 0.7);
+  white-space: nowrap;
+  background: rgba(250, 246, 236, 0.8);
+  box-shadow: 0 0 10px 8px rgba(250, 246, 236, 0.8);
+  border-radius: 10px;
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+.tip.on { opacity: 1; }
+
+/* 바구니 창: 간직한 메모 목록 (종이 위에) */
+.basketview {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: min(320px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: rgba(250, 246, 236, 0.95);
+  box-shadow: 0 0 16px 12px rgba(250, 246, 236, 0.9), 0 6px 18px rgba(80, 76, 140, 0.18);
+  border-radius: 14px;
+  padding: 6px 4px 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+}
+.basketview.on { opacity: 1; pointer-events: auto; }
+.basketview .head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 4px 6px 8px;
+  font-size: 12px;
+  color: rgba(58, 55, 102, 0.6);
+  border-bottom: 1.5px dashed rgba(58, 55, 102, 0.18);
+}
+.basketview .x {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  color: rgba(58, 55, 102, 0.55);
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.basketview .list { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+/* 더 있으면 아래가 흐려진다 */
+.basketview .list.more { -webkit-mask-image: linear-gradient(#000 82%, transparent); mask-image: linear-gradient(#000 82%, transparent); }
+.basketview .row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px 8px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.basketview .row.pick { background: rgba(255, 251, 234, 0.95); box-shadow: inset 0 0 0 1.5px rgba(58, 55, 102, 0.12); }
+.basketview .dot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink);
+}
+.basketview .body { flex: 1; min-width: 0; word-break: keep-all; }
+.basketview .day { font-size: 11px; color: rgba(58, 55, 102, 0.55); }
+.basketview .btns { display: flex; flex-direction: column; gap: 2px; }
+.basketview .btns button {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  color: rgba(58, 55, 102, 0.75);
+  padding: 4px 6px;
+  border-bottom: 1.5px dashed rgba(58, 55, 102, 0.3);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.basketview .empty, .basketview .msg { padding: 10px 8px; font-size: 12px; color: rgba(58, 55, 102, 0.6); }
+.basketview .msg { color: #b0566f; }
+
+/* 메모 목록: 바구니 창과 같은 종이 (버튼 없이 줄 전체를 누른다) */
+.memolist .row { padding-right: 10px; }
+
+/* 나무 넘기기: 화면 왼쪽 위 작은 쪽지 */
+.pager {
+  position: fixed;
+  top: 16px;
+  left: 18px; /* 왼쪽 위 */
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--font);
+  font-size: 12px;
+  color: rgba(58, 55, 102, 0.7);
+  background: rgba(250, 246, 236, 0.8);
+  box-shadow: 0 0 10px 6px rgba(250, 246, 236, 0.8);
+  border-radius: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s;
+}
+.pager.on { opacity: 1; pointer-events: auto; }
+.pager button {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--ink);
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.pager button:disabled { opacity: 0.2; cursor: default; }
+.pager button[hidden] { display: none; }
+.pager span { padding: 6px 4px; }
+.pager button.nudge { animation: nudge 0.9s ease-in-out 2; }
+@keyframes nudge { 0%, 100% { transform: none; } 50% { transform: translateX(5px); } }
+
+/* 장식 날짜: 다가온 날은 실 색 글씨로 */
+.note .day.soon { color: #b0566f; }
+/* 빠른 선택 칩 (읽기 글 아래, 작은 실 밑줄 글씨) */
+.note .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  margin-top: 6px;
+  max-width: 240px;
+  pointer-events: auto;
+}
+.note .chips button {
+  position: relative;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  color: rgba(58, 55, 102, 0.75);
+  padding: 4px 4px 3px;
+  border-bottom: 1.5px dashed var(--yarn-note, rgba(58, 55, 102, 0.3));
+  cursor: pointer;
+  white-space: nowrap;
+}
+.note .chips button.on { color: var(--ink); border-bottom-style: solid; }
+.note .chips .pick input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.memolist .row.soon .day { color: #b0566f; }
+
+/* 뜨개방: 메모를 쓰는 따로 된 화면. 왼쪽 큰 뜨개틀, 오른쪽 제목 + 실 색 휠 + 버튼 */
+.room {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 30;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 34px;
+  padding: 30px;
+  font-family: var(--font);
+  color: var(--ink);
+  background: #efe9dc;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(1.02);
+  transition: opacity 0.35s, transform 0.35s;
+}
+.room.on { opacity: 1; pointer-events: auto; transform: none; }
+/* 뒤: 종이 + 손으로 그은 장식 틀 (레퍼런스) */
+.room .deco { position: absolute; left: 0; top: 0; z-index: -1; }
+/* 종이 결: 모든 것 위에 얇게 곱한다 (정원 후처리처럼) */
+.room .grain { position: absolute; inset: 0; z-index: 5; opacity: 0.5; mix-blend-mode: multiply; pointer-events: none; }
+.room.tall { flex-direction: column; justify-content: center; }
+.room .loom { position: relative; flex: none; margin: 14px; } /* margin = 장식 틀 자리 (config.room.plate) */
+.room .loom canvas { display: block; }
+.room .loom.shake { animation: shake 0.42s; }
+.room .loom #memo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: none;
+  caret-color: transparent;
+  font-size: 16px; /* 16px 아래면 아이패드가 확대해 버린다 */
+}
+.room .side { flex: 1; min-width: 0; align-self: center; justify-content: center; box-sizing: border-box; max-height: 100%; padding: 56px 44px 36px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; }
+.room.tall .side { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 8px 18px; }
+.room .label { font-size: 13px; color: rgba(58, 55, 102, 0.7); letter-spacing: 0.02em; }
+.room.tall .label { display: none; }
+/* 실 바구니: 이중선 액자 (그림자 없이) */
+.room .yarnbasket {
+  outline: none;
+  padding: 5px;
+  background: #efe9dc;
+  border: 1.6px solid var(--ink);
+  border-radius: 50% 50% 10px 10px / 18% 18% 10px 10px;
+}
+.room .yarnbasket canvas { display: block; border: 1px solid var(--ink); border-radius: 50% 50% 6px 6px / 17% 17% 6px 6px; }
+.room .yarnbasket:focus-visible { outline: 2px dashed var(--ink); outline-offset: 3px; }
+.room .found { min-height: 18px; font-size: 12px; color: rgba(58, 55, 102, 0.6); }
+.room .btns { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.room button { border: 0; background: none; font: inherit; color: var(--ink); cursor: pointer; }
+/* 다 떴어요: 레퍼런스의 START처럼 납작한 남색 판 + 이중선 */
+.room .done {
+  font-size: 17px;
+  padding: 4px;
+  background: #efe9dc;
+  border: 1.6px solid var(--ink);
+  border-radius: 4px 4px 14px 14px;
+}
+.room .done span {
+  display: block;
+  padding: 9px 30px 10px;
+  background: #5f6190;
+  color: #f6f1e6;
+  border: 1px solid var(--ink);
+  border-radius: 2px 2px 11px 11px;
+  letter-spacing: 0.04em;
+}
+.room .done:active span { background: #4f5180; }
+.room .quit { font-size: 13px; color: rgba(58, 55, 102, 0.55); padding: 6px 10px; }
+.room .hint { max-width: 240px; font-size: 12px; line-height: 1.5; color: rgba(58, 55, 102, 0.55); word-break: keep-all; }
+.room.tall .hint { flex-basis: 100%; max-width: none; }
+
+/* 다 뜬 글 쪽지: 정원 아래 가운데 (말린 천 + 글 + 가지를 꾹) */
+.pending {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translate(-50%, 12px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+  padding: 6px 8px 6px 6px;
+  font-family: var(--font);
+  color: var(--ink);
+  background: rgba(250, 246, 236, 0.92);
+  box-shadow: 0 0 12px 8px rgba(250, 246, 236, 0.8), 0 4px 12px rgba(80, 76, 140, 0.14);
+  border-radius: 14px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s, transform 0.35s;
+}
+.pending.on { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+.pending button { border: 0; background: none; font: inherit; color: inherit; cursor: pointer; padding: 0; }
+.pending .roll { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pending .cloth {
+  flex: none;
+  width: 34px;
+  height: 22px;
+  border-radius: 11px;
+  border: 1.5px solid var(--ink);
+  background: repeating-linear-gradient(90deg, var(--yarn) 0 4px, color-mix(in srgb, var(--yarn), #3a3766 18%) 4px 6px);
+}
+.pending .txt { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+.pending .how { font-size: 11px; color: rgba(58, 55, 102, 0.6); white-space: nowrap; }
+.pending .x { font-size: 18px; line-height: 1; padding: 2px 6px; color: rgba(58, 55, 102, 0.55); }
+@media (max-width: 520px) { .pending .how { display: none; } }
+
+/* 처음 안내: 털실 위 말풍선 */
+.starthint {
+  position: fixed;
+  transform: translate(-50%, -100%);
+  font-family: var(--font);
+  font-size: 13px;
+  color: rgba(58, 55, 102, 0.8);
+  background: rgba(250, 246, 236, 0.95);
+  border: 1.5px solid rgba(58, 55, 102, 0.55);
+  border-radius: 14px;
+  padding: 6px 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.4s;
+  animation: hintbob 2.4s ease-in-out infinite;
+}
+/* 말풍선 꼬리: 털실 쪽으로 */
+.starthint::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 9px;
+  height: 9px;
+  background: inherit;
+  border-right: inherit;
+  border-bottom: inherit;
+  transform: translateX(-50%) rotate(45deg);
+}
+@keyframes hintbob { 50% { margin-top: -4px; } }
+@media (prefers-reduced-motion: reduce) { .starthint { animation: none; } }
+.starthint.off { opacity: 0; }
+/* 읽기: 손글씨 대신 그 글자 천이 펼쳐진다 */
+.note canvas.fabric { display: block; margin: 0 auto 4px; }
+/* 읽기: 조각을 톡 → 같은 뜨개틀이 크게 (조각을 가리지 않는 쪽에) */
+.note.big { padding: 10px 12px 8px; background: rgba(250, 246, 236, 0.94); box-shadow: 0 0 16px 10px rgba(250, 246, 236, 0.85), 0 8px 22px rgba(80, 76, 140, 0.2); border-radius: 14px; }
+.note.big .day { font-size: 12px; margin-top: 4px; }
+.room.tall .side { flex: none; padding: 44px 40px 22px; gap: 10px 22px; align-items: center; }
+.room.tall .hint { font-size: 11px; }
+@media (max-height: 900px) { .room.tall .hint { display: none; } }
+
+/* 읽기 글: 종이 위 글자 + 장식 날짜 안내 */
+.note .text { font-size: 16px; line-height: 1.5; }
+.note .duetip { margin-top: 6px; font-size: 12px; color: var(--ink); opacity: 0.8; word-break: keep-all; }
+.note .knittip { margin-top: 6px; padding-top: 5px; border-top: 1.5px dashed var(--yarn-note, rgba(58,55,102,0.3)); font-size: 12px; color: var(--ink); word-break: keep-all; }
+.note .text.done { text-decoration: line-through; text-decoration-color: var(--yarn-note); opacity: 0.7; }

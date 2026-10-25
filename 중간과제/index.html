@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>You memo? I memo!</title>
+    <link rel="stylesheet" href="style.css" />
+
+    <!-- importmap: 'three'라고 쓰면 lib 안의 파일을 불러오도록 이름을 정해 둔다 -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./lib/three/three.module.js",
+          "three/addons/": "./lib/three/addons/"
+        }
+      }
+    </script>
+    <!-- Matter.js 0.20.0 (전역 변수 Matter) -->
+    <script src="lib/matter-0.20.0.js"></script>
+  </head>
+
+  <body>
+    <div id="app"></div>
+    <!-- 메모 한 줄 (손글씨 폰트는 F3에서 고른다) -->
+    <input id="memo" type="text" maxlength="60" autocomplete="off" aria-label="메모" placeholder="적고 나서 나무를 꾹" />
+    <!-- type="module": import 문을 쓸 수 있는 자바스크립트 -->
+    <script type="module" src="src/main.js"></script>
+  </body>
+</html>
