@@ -143,7 +143,7 @@ function canKnit(slot) {
   }
   return true;
 }
-let gesture = null, hoverCheck = null, placeTip = null, basketView = null, room = null;
+let gesture = null, hoverCheck = null, placeTip = null, placeBranchHint = null, basketView = null, room = null;
 let pending = ''; // 뜨개방에서 다 뜬 글 (정원에서 가지를 꾹 누르면 짜인다)
 const ring = lab ? null : makeHoldRing(); // 꾹 누르는 동안 손가락 옆에 차오르는 실 고리
 // 누르는 시간 = 짜임: 짧게 = 성근 망사, 1초쯤 = 줄무늬, 2초 이상 = 그래니
@@ -191,6 +191,7 @@ if (!lab) {
     return { slot: world.memos.nearest(e.clientX, e.clientY, camera, true).slot };
   }
   let tapped = null, closing = 0; // 톡톡: 첫 톡에서 맞힌 조각, 닫기 대기
+  let hinted = null; // 가지 안내 고리를 보여 주는 자리
   let aim = null; // 누르는 순간 정한 자리 (미리보기 고리로 보여 준다)
   let grab = null; // 누른 곳의 다 짠 조각 { memo } 또는 땅의 실뭉치 { ball }
   cv.addEventListener('pointerdown', (e) => {
@@ -206,7 +207,7 @@ if (!lab) {
     // 다 뜬 글이 있으면 누르는 순간 짜일 자리에 실 색 고리
     if (pending && aim?.slot) world.memos.preview(aim.slot, app.yarn.color); // 지금 나무일 때만 (옆 나무는 other)
   });
-  const unfreeze = () => { controls.freeze(false); world.memos.clearPreview(); };
+  const unfreeze = () => { controls.freeze(false); world.memos.clearPreview(); hinted = null; };
   cv.addEventListener('pointerup', unfreeze);
   cv.addEventListener('pointercancel', unfreeze);
   // ── 당겨 풀기, 실뭉치 굴리기 ─────────────────
@@ -433,6 +434,7 @@ if (!lab) {
     ring.show(e.clientX, e.clientY, e.pointerType === 'touch', app.yarn.color);
     setPending('');
     startHint.done();
+    branchDone();
   }
   // 톡: 보통(줄무늬)으로 바로
   function quickKnit(slot) {
@@ -440,6 +442,7 @@ if (!lab) {
     world.memos.start(slot, pending, app.yarn.hue, 'stripe', false);
     setPending('');
     startHint.done();
+    branchDone();
   }
   room = makeKnitRoom(input, {
     input: findText,
@@ -473,6 +476,32 @@ if (!lab) {
     if (room.open || e.metaKey || e.ctrlKey || e.altKey || e.key.length !== 1 || document.activeElement?.closest?.('.basketview, .note, .pending, button')) return;
     openRoom();
   });
+
+  // 다 뜬 글이 있을 때: 다음에 짜일 가지에 실 색 고리 + 그 위 말풍선 "가지를 꾹 누르면 메모가 짜여요" (처음 다섯 번 짤 때까지)
+  const bh = document.createElement('div');
+  bh.className = 'starthint off';
+  bh.textContent = '가지를 꾹 누르면 메모가 짜여요';
+  document.body.appendChild(bh);
+  let bn = 0;
+  try { bn = Number(localStorage.getItem('memo.branchHint')) || 0; } catch (err) { /* 무시 */ }
+  function branchDone() { bn++; try { localStorage.setItem('memo.branchHint', String(bn)); } catch (err) { /* 무시 */ } }
+  const bv = new THREE.Vector3(), bf = {};
+  placeBranchHint = () => {
+    const slot = pending && bn < 5 && !room.open && !gesture?.pressing && !world.sliding ? world.memos.nextFree() : null;
+    bh.classList.toggle('off', !slot);
+    if (!slot) {
+      if (hinted) { world.memos.clearPreview(); hinted = null; }
+      return;
+    }
+    if (hinted !== slot) { world.memos.preview(slot, app.yarn.color); hinted = slot; }
+    // 위쪽 고리 바로 위 → 말풍선 꼬리가 거기를 가리킨다
+    slot.branch.at(slot.t1, bf);
+    bv.copy(bf.pos);
+    world.tree.group.localToWorld(bv);
+    bv.y += 0.12;
+    bv.project(camera);
+    Object.assign(bh.style, { left: (bv.x + 1) / 2 * innerWidth + 'px', top: (1 - bv.y) / 2 * innerHeight - 6 + 'px' });
+  };
 
   // 처음 안내: 털실 위 말풍선 "털실을 톡 누르면 메모를 뜰 수 있어요" (처음 세 번 짤 때까지). 보이는 동안 털실이 가끔 통 튄다
   const startHint = (() => {
@@ -632,6 +661,7 @@ function loop(now) {
   hopStep(app.paused ? 0 : dt);
   note?.update();
   placeTip?.();
+  placeBranchHint?.();
   basketView?.place();
   memoList?.place();
   world.front?.follow(camera, controls.panX);
