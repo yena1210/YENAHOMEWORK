@@ -117,17 +117,28 @@ export function makeSound() {
   }
 
   // 첫 톡: 소리 시작 (음악은 천천히 커진다)
+  // 아이패드/아이폰: 무음 모드에서도 들리게 하고, 깨우기에 실패하면 다음 톡에서 다시 시도한다
   function start() {
+    if (!ctx) {
+      try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* 무시 */ }
+      if (!init()) return;
+    }
+    if (ctx.state !== 'running') {
+      ctx.resume?.();
+      // 빈 소리를 한 번 틀어야 깨어나는 기기가 있다
+      const src = ctx.createBufferSource();
+      src.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+      src.connect(ctx.destination);
+      src.start(0);
+    }
     if (started) return;
-    if (!ctx && !init()) return;
     started = true;
-    ctx.resume?.();
     const t = ctx.currentTime;
     music.gain.setValueAtTime(0, t);
     music.gain.linearRampToValueAtTime(S.music, t + S.fadeIn);
     setInterval(tick, 80);
   }
-  for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, start, { capture: true });
+  for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) addEventListener(ev, start, { capture: true });
   // 다른 탭으로 가면 멈춘다
   document.addEventListener('visibilitychange', () => {
     if (!ctx) return;
